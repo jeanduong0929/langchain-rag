@@ -54,8 +54,7 @@ def main():
         combine_docs_chain_kwargs={"prompt": PROMPT},
     )
     while True:
-        # Clear the terminal
-        clear()
+        print("\n============================\n")
 
         # Get user input
         query = get_user_input()
@@ -66,10 +65,10 @@ def main():
 
         result = conv_retrieval_chain.invoke({"question": query})
 
-        print("\n\n")
+        print("\n")
         print(result["answer"])
-
-        press_enter()
+        print("\n")
+        print(result["answer"])
 
 
 if __name__ == "__main__":
