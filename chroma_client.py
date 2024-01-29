@@ -33,7 +33,7 @@ class ChromaClient:
             # Before chunking check the vector store to see if the document has already been processed
             result = self.vector_store.get(where={"source": "resources/" + filename})
 
-            if result:
+            if result["ids"]:
                 print("Skipping " + filename + " because it has already been processed")
                 continue
 

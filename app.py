@@ -51,7 +51,7 @@ def main():
         memory=memory,
         return_source_documents=True,
         verbose=False,
-        combine_docs_chain_kwargs={"prompt": PROMPT},
+        # combine_docs_chain_kwargs={"prompt": PROMPT},
     )
     while True:
         print("\n============================\n")
@@ -68,7 +68,7 @@ def main():
         print("\n")
         print(result["answer"])
         print("\n")
-        print(result["answer"])
+        print(result)
 
 
 if __name__ == "__main__":
