@@ -8,85 +8,103 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.messages import HumanMessage, AIMessage
 
 
-def main():
+def initialize_session_variables():
+    """Initialize necessary session variables for the application."""
+    if "chroma_db" not in st.session_state:
+        st.session_state.chroma_db = ChromaClient()
+
+    if "openai_llm" not in st.session_state:
+        st.session_state.openai_llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.0)
+
+    if "prompt" not in st.session_state:
+        st.session_state.prompt = create_chat_prompt_template()
+
+    if "document" not in st.session_state:
+        st.session_state.document = create_stuff_documents_chain(
+            llm=st.session_state.openai_llm, prompt=st.session_state.prompt
+        )
+
     if "conversation" not in st.session_state:
-        st.session_state.conversation = None
+        st.session_state.conversation = create_retrieval_chain(
+            retriever=st.session_state.chroma_db.vector_store.as_retriever(
+                search_kwargs={"k": 3}
+            ),
+            combine_docs_chain=st.session_state.document,
+        )
 
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
 
-    # Intialize the vector store
-    st.session_state.chroma_db = ChromaClient()
 
-    # Initialize OpenAI LLM
-    st.session_state.openai_llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.0)
-
-    # Create the prompt for the chatbot
-    st.session_state.prompt = ChatPromptTemplate.from_messages(
+def create_chat_prompt_template():
+    """Create the chat prompt template for the application."""
+    return ChatPromptTemplate.from_messages(
         [
             (
                 "system",
                 """You are an AI model acting as a powerlifting coach. Your knowledge and advice are based entirely on a specific set of documents provided to you, referred to as 'context'. These documents contain information about powerlifting techniques, training programs, nutrition, equipment, and competition rules. You do not have access to any other information beyond these documents. Your responses should be grounded solely in the information found in these documents. Here are your guidelines:
-                1. Respond to inquiries using only the information contained in the context. Do not use your training data or external knowledge.
-                2. If asked about powerlifting techniques, training routines, nutritional advice, or equipment, refer directly to the information in the provided documents to answer.
-                3. In cases where the context does not contain the information needed to answer a query, clearly state that the answer is not available in the provided documents.
-                4. Do not make assumptions or create answers based on general knowledge. Stick strictly to the content of the context.
-                5. Maintain a professional tone, befitting a powerlifting coach, focusing on providing accurate and reliable information to assist in training and competition preparation.
-                6. Quote the source from the context metadata. The source should contain the name of the author, the title of the document, and page number.
+                    1. Respond to inquiries using only the information contained in the context. Do not use your training data or external knowledge.
+                    2. If asked about powerlifting techniques, training routines, nutritional advice, or equipment, refer directly to the information in the provided documents to answer.
+                    3. In cases where the context does not contain the information needed to answer a query, clearly state that the answer is not available in the provided documents.
+                    4. Do not make assumptions or create answers based on general knowledge. Stick strictly to the content of the context.
+                    5. Maintain a professional tone, befitting a powerlifting coach, focusing on providing accurate and reliable information to assist in training and competition preparation.
+                    6. Quote the sources from the context metadata. The source should contain the name of the author, the title of the document, and page number.
 
-                Your primary role is to assist, inform, and guide individuals interested in powerlifting by utilizing the specific information provided in the context documents.
+                    Your primary role is to assist, inform, and guide individuals interested in powerlifting by utilizing the specific information provided in the context documents.
 
-                ---
-                Context: {context}
-                ---
-                """,
+                    ---
+                    Context: {context}
+                    ---
+                    """,
             ),
             (MessagesPlaceholder(variable_name="chat_history")),
             ("user", "Question: {input}"),
         ]
     )
 
-    st.session_state.document = create_stuff_documents_chain(
-        llm=st.session_state.openai_llm, prompt=st.session_state.prompt
-    )
 
-    st.session_state.conversation = create_retrieval_chain(
-        retriever=st.session_state.chroma_db.vector_store.as_retriever(
-            search_kwargs={"k": 3}
-        ),
-        combine_docs_chain=st.session_state.document,
-    )
-
-    # Setting up the page title and icon
-    st.set_page_config(page_title="Powerlifting Chatbot", page_icon=":weight_lifter:")
-
-    # Setting up the header
+def setup_page():
+    """Set up the page configuration and header."""
+    # st.set_page_config(page_title="Powerlifting Chatbot", page_icon=":weight_lifter:")
     st.header("Powerlifting Chatbot :weight_lifter:")
 
+
+def handle_user_input():
+    """Handle user input and display the conversation."""
     if user_question := st.chat_input("Ask me a question"):
-        # Query the user input
         with st.spinner("Thinking..."):
-            result = st.session_state.conversation.invoke(
-                {"chat_history": st.session_state.chat_history, "input": user_question}
-            )
+            result = process_user_question(user_question)
+        display_chat_history(result)
 
-        # Save the chat history to the session state
-        st.session_state.chat_history = result["chat_history"]
 
-        # Add the user input and response to the chat history
-        st.session_state.chat_history.extend(
-            [HumanMessage(content=user_question), AIMessage(content=result["answer"])]
-        )
+def process_user_question(user_question):
+    """Process the user's question and return the result."""
+    result = st.session_state.conversation.invoke(
+        {"chat_history": st.session_state.chat_history, "input": user_question}
+    )
+    st.session_state.chat_history = result["chat_history"]
+    st.session_state.chat_history.extend(
+        [HumanMessage(content=user_question), AIMessage(content=result["answer"])]
+    )
+    return result
 
-        # Iterate through the chat history and display the messages
-        st.session_state.chat_history = result["chat_history"]
-        for i, message in enumerate(result["chat_history"]):
-            if i % 2 == 0:
-                with st.chat_message("user"):
-                    st.write(message.content)
-            else:
-                with st.chat_message("ai"):
-                    st.write(message.content)
+
+def display_chat_history(result):
+    """Display the chat history on the page."""
+    for i, message in enumerate(result["chat_history"]):
+        if i % 2 == 0:
+            with st.chat_message("user"):
+                st.write(message.content)
+        else:
+            with st.chat_message("ai"):
+                st.write(message.content)
+
+
+def main():
+    """Main function to run the application."""
+    initialize_session_variables()
+    setup_page()
+    handle_user_input()
 
 
 if __name__ == "__main__":
