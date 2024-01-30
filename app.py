@@ -3,7 +3,7 @@ from langchain_openai import ChatOpenAI
 from langchain.prompts import MessagesPlaceholder, ChatPromptTemplate
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain.memory import ConversationBufferMemory
+from langchain_core.messages import HumanMessage, AIMessage
 
 
 def get_user_input():
@@ -17,10 +17,7 @@ def main():
     chroma_db = ChromaClient()
 
     # Initialize OpenAI LLM
-    openai_llm = ChatOpenAI(model="gpt-4", temperature=0.0)
-
-    # Create a conversation buffer memory to save chat history
-    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+    openai_llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.0)
 
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -32,6 +29,7 @@ def main():
                 3. In cases where the context does not contain the information needed to answer a query, clearly state that the answer is not available in the provided documents.
                 4. Do not make assumptions or create answers based on general knowledge. Stick strictly to the content of the context.
                 5. Maintain a professional tone, befitting a powerlifting coach, focusing on providing accurate and reliable information to assist in training and competition preparation.
+                6. Quote the source from the context metadata
     
                 Your primary role is to assist, inform, and guide individuals interested in powerlifting by utilizing the specific information provided in the context documents.
     
@@ -41,7 +39,7 @@ def main():
                 """,
             ),
             (MessagesPlaceholder(variable_name="chat_history")),
-            ("user", "{input}"),
+            ("user", "Question: {input}"),
         ]
     )
 
@@ -52,6 +50,7 @@ def main():
         combine_docs_chain=document,
     )
 
+    chat_history = []
     while True:
         print("\n============================\n")
 
@@ -62,25 +61,21 @@ def main():
         if query == "exit":
             break
 
+        # Query the user input
         result = conv_retrieval_chain.invoke(
             {
-                "chat_history": [],
+                "chat_history": chat_history,
                 "input": query,
             }
         )
 
+        # Add the user input and response to the chat history
+        chat_history.extend(
+            [HumanMessage(content=query), AIMessage(content=result["answer"])]
+        )
+
         print("\n")
         print(result["answer"])
-        print("\n")
-        print(memory)
-
-        # Print the sources used to answer the question
-        # unique_sources = set()
-        # for doc in result["source_documents"]:
-        #     # Split the source path to get the filename
-        #     filename = doc.metadata["source"].split("/")[-1]
-        #     unique_sources.add(filename)
-        # print("Sources: " + ", ".join(unique_sources))
 
 
 if __name__ == "__main__":
