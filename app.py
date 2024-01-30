@@ -9,7 +9,20 @@ from langchain_core.messages import HumanMessage, AIMessage
 
 
 def initialize_session_variables():
-    """Initialize necessary session variables for the application."""
+    """
+    Initializes the session variables if they don't already exist.
+
+    The session variables include:
+    - chroma_db: ChromaClient instance
+    - openai_llm: ChatOpenAI instance
+    - prompt: chat prompt template
+    - document: stuff documents chain
+    - conversation: retrieval chain
+    - chat_history: list of chat history
+
+    Returns:
+    None
+    """
     if "chroma_db" not in st.session_state:
         st.session_state.chroma_db = ChromaClient()
 
@@ -37,7 +50,12 @@ def initialize_session_variables():
 
 
 def create_chat_prompt_template():
-    """Create the chat prompt template for the application."""
+    """
+    Creates a chat prompt template for the powerlifting coach AI model.
+
+    Returns:
+        ChatPromptTemplate: The chat prompt template object.
+    """
     return ChatPromptTemplate.from_messages(
         [
             (
@@ -64,13 +82,16 @@ def create_chat_prompt_template():
 
 
 def setup_page():
-    """Set up the page configuration and header."""
-    # st.set_page_config(page_title="Powerlifting Chatbot", page_icon=":weight_lifter:")
+    """
+    Sets up the Powerlifting Chatbot page.
+    """
     st.header("Powerlifting Chatbot :weight_lifter:")
 
 
 def handle_user_input():
-    """Handle user input and display the conversation."""
+    """
+    Handles user input by asking for a question, processing it, and displaying the chat history.
+    """
     if user_question := st.chat_input("Ask me a question"):
         with st.spinner("Thinking..."):
             result = process_user_question(user_question)
@@ -78,7 +99,15 @@ def handle_user_input():
 
 
 def process_user_question(user_question):
-    """Process the user's question and return the result."""
+    """
+    Process the user's question by invoking the conversation model and updating the chat history.
+
+    Args:
+        user_question (str): The user's question.
+
+    Returns:
+        dict: The result of the conversation model invocation.
+    """
     result = st.session_state.conversation.invoke(
         {"chat_history": st.session_state.chat_history, "input": user_question}
     )
@@ -90,7 +119,15 @@ def process_user_question(user_question):
 
 
 def display_chat_history(result):
-    """Display the chat history on the page."""
+    """
+    Display the chat history.
+
+    Parameters:
+    result (dict): The result containing the chat history.
+
+    Returns:
+    None
+    """
     for i, message in enumerate(result["chat_history"]):
         if i % 2 == 0:
             with st.chat_message("user"):
@@ -101,7 +138,10 @@ def display_chat_history(result):
 
 
 def main():
-    """Main function to run the application."""
+    """
+    This is the main function that initializes session variables,
+    sets up the page, and handles user input.
+    """
     initialize_session_variables()
     setup_page()
     handle_user_input()
