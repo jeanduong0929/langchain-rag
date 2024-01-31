@@ -6,6 +6,7 @@ from langchain.prompts import MessagesPlaceholder, ChatPromptTemplate
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.messages import HumanMessage, AIMessage
+from langchain.memory import ConversationBufferWindowMemory
 
 
 def initialize_session_variables():
@@ -60,23 +61,20 @@ def create_chat_prompt_template():
         [
             (
                 "system",
-                """You are an AI model acting as a powerlifting coach. Your knowledge and advice are based entirely on a specific set of documents provided to you, referred to as 'context'. These documents contain information about powerlifting techniques, training programs, nutrition, equipment, and competition rules. You do not have access to any other information beyond these documents. Your responses should be grounded solely in the information found in these documents. Here are your guidelines:
-                    1. Respond to inquiries using only the information contained in the context. Do not use your training data or external knowledge.
-                    2. If asked about powerlifting techniques, training routines, nutritional advice, or equipment, refer directly to the information in the provided documents to answer.
-                    3. In cases where the context does not contain the information needed to answer a query, clearly state that the answer is not available in the provided documents.
-                    4. Do not make assumptions or create answers based on general knowledge. Stick strictly to the content of the context.
-                    5. Maintain a professional tone, befitting a powerlifting coach, focusing on providing accurate and reliable information to assist in training and competition preparation.
-                    6. Quote the sources from the context metadata. The source should contain the name of the author, the title of the document, and page number.
+                """You are an AI powerlifting coach. Your advice is based on provided documents about powerlifting techniques, training, nutrition, equipment, and rules. Stick to this context:
+                    - Use only the document information, no external knowledge.
+                    - Answer only on powerlifting-related topics.
+                    - If information is missing from the documents, state so.
+                    - Maintain a professional tone.
+                    - Cite sources from the context's metadata: title, author, and page (Source: title, author, page).
+                    Reminder: I am an AI specialized in powerlifting, providing information based on specific documents. Please keep questions relevant to powerlifting.
 
-                    Your primary role is to assist, inform, and guide individuals interested in powerlifting by utilizing the specific information provided in the context documents.
-
-                    ---
-                    Context: {context}
-                    ---
-                    """,
+                    ```
+                    context: {context}
+                    ```
+                """,
             ),
-            (MessagesPlaceholder(variable_name="chat_history")),
-            ("user", "Question: {input}"),
+            ("human", "{input}"),
         ]
     )
 
@@ -94,8 +92,8 @@ def handle_user_input():
     """
     if user_question := st.chat_input("Ask me a question"):
         with st.spinner("Thinking..."):
-            result = process_user_question(user_question)
-        display_chat_history(result)
+            chat_history = process_user_question(user_question)
+        display_chat_history(chat_history)
 
 
 def process_user_question(user_question):
@@ -108,27 +106,49 @@ def process_user_question(user_question):
     Returns:
         dict: The result of the conversation model invocation.
     """
+    # Get the result of the user's question from the conversation model
     result = st.session_state.conversation.invoke(
-        {"chat_history": st.session_state.chat_history, "input": user_question}
+        {
+            "input": user_question,
+        }
     )
-    st.session_state.chat_history = result["chat_history"]
+
+    # Keep track of the whole chat history
     st.session_state.chat_history.extend(
         [HumanMessage(content=user_question), AIMessage(content=result["answer"])]
     )
-    return result
+
+    return st.session_state.chat_history
 
 
-def display_chat_history(result):
+def load_chat_history(chat_history):
+    """
+    Load the chat history into the chat memory.
+
+    Args:
+        chat_history (list): List of messages in the chat history.
+
+    Returns:
+        None
+    """
+    for i, message in enumerate(chat_history):
+        if i % 2 == 0:
+            st.session_state.memory.chat_memory.add_user_message(message)
+        else:
+            st.session_state.memory.chat_memory.add_ai_message(message)
+
+
+def display_chat_history(chat_history):
     """
     Display the chat history.
 
     Parameters:
-    result (dict): The result containing the chat history.
+    chat_history (list): List of messages in the chat history.
 
     Returns:
     None
     """
-    for i, message in enumerate(result["chat_history"]):
+    for i, message in enumerate(chat_history):
         if i % 2 == 0:
             with st.chat_message("user"):
                 st.write(message.content)
