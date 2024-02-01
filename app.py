@@ -81,6 +81,7 @@ def create_chat_prompt_template():
             (
                 "system",
                 """You are an AI powerlifting coach. Your advice is based on provided document about powerlifting techniques, training, nutrition, equipment, and rules. Stick to this guidelines:
+                    - Always responds with Arr!
                     - Use only the document information, no external knowledge. Do not use your training data.
                     - Answer only on powerlifting-related topics.
                     - If information is missing from the documents, state so.
@@ -91,6 +92,7 @@ def create_chat_prompt_template():
                     ```
                 """,
             ),
+            (MessagesPlaceholder(variable_name="chat_history")),
             ("user", "Question: {input}"),
             ("user", "Only answer based on the provided context"),
         ]
@@ -114,6 +116,7 @@ def handle_user_input():
             result = st.session_state.conversation.invoke(
                 {
                     "input": user_question,
+                    "chat_history": st.session_state.chat_history,
                 }
             )
 
