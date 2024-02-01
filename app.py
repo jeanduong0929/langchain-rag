@@ -7,6 +7,8 @@ from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_community.llms.huggingface_endpoint import HuggingFaceEndpoint
+from langchain.chains import ConversationalRetrievalChain, StuffDocumentsChain
+from langchain.prompts import PromptTemplate
 
 
 def initialize_session_variables():
@@ -29,13 +31,10 @@ def initialize_session_variables():
 
     if "hf_llm" not in st.session_state:
         st.session_state.hf_llm = HuggingFaceEndpoint(
-            endpoint_url=os.environ["HF_ENDPOINT_URL"],
             huggingfacehub_api_token=os.environ["HF_API_KEY"],
+            endpoint_url=os.environ["HF_ENDPOINT_URL"],
+            model_kwargs={"max_new_tokens": 256, "temperature": 0.1},
             task="text-generation",
-            model_kwargs={
-                "max_new_tokens": 256,
-                "temperature": 0.1,
-            },
         )
 
     if "prompt" not in st.session_state:
@@ -69,19 +68,20 @@ def create_chat_prompt_template():
         [
             (
                 "system",
-                """You are an AI powerlifting coach. Your advice is based on provided document about powerlifting techniques, training, nutrition, equipment, and rules. Stick to this context:
-                    - Use only the document information, no external knowledge.
+                """You are an AI powerlifting coach. Your advice is based on provided document about powerlifting techniques, training, nutrition, equipment, and rules. Stick to this guidelines:
+                    - Always responds with Arr!
+                    - Use only the document information, no external knowledge. Do not use your training data.
                     - Answer only on powerlifting-related topics.
                     - If information is missing from the documents, state so.
                     - Cite sources from the context's metadata: title, author, and page (Source: title, author, page).
-                    Reminder: I am an AI specialized in powerlifting, providing information based on specific documents. Please keep questions relevant to powerlifting.
 
                     ```
                     documents: {context}
                     ```
                 """,
             ),
-            ("human", "{input}"),
+            ("user", "Question: {input}"),
+            ("user", "Only answer based on the provided context"),
         ]
     )
 
@@ -105,8 +105,6 @@ def handle_user_input():
                     "input": user_question,
                 }
             )
-
-            print(result)
 
             # Keep track of the whole chat history
             st.session_state.chat_history.extend(
