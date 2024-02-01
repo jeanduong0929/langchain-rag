@@ -3,11 +3,10 @@ import streamlit as st
 
 from chroma_client import ChromaClient
 from langchain.prompts import ChatPromptTemplate
-from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_community.llms.huggingface_endpoint import HuggingFaceEndpoint
-from langchain.chains import ConversationalRetrievalChain, StuffDocumentsChain
+from langchain.chains import ConversationalRetrievalChain
 from langchain.prompts import PromptTemplate
 
 
@@ -46,11 +45,14 @@ def initialize_session_variables():
         )
 
     if "conversation" not in st.session_state:
-        st.session_state.conversation = create_retrieval_chain(
+        st.session_state.conversation = ConversationalRetrievalChain.from_llm(
+            llm=st.session_state.hf_llm,
             retriever=st.session_state.chroma_db.vector_store.as_retriever(
-                search_kwargs={"k": 2}
+                search_kwargs={"k": 3}
             ),
-            combine_docs_chain=st.session_state.document,
+            verbose=True,
+            combine_docs_chain_kwargs={"prompt": create_chat_prompt_template()},
+            return_source_documents=True,
         )
 
     if "chat_history" not in st.session_state:
@@ -64,26 +66,23 @@ def create_chat_prompt_template():
     Returns:
         ChatPromptTemplate: The chat prompt template object.
     """
-    return ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                """You are an AI powerlifting coach. Your advice is based on provided document about powerlifting techniques, training, nutrition, equipment, and rules. Stick to this guidelines:
-                    - Always responds with Arr!
-                    - Use only the document information, no external knowledge. Do not use your training data.
-                    - Answer only on powerlifting-related topics.
-                    - If information is missing from the documents, state so.
-                    - Cite sources from the context's metadata: title, author, and page (Source: title, author, page).
+    prompt = """You are an AI powerlifting coach. Your advice is based on provided document about powerlifting techniques, training, nutrition, equipment, and rules. Stick to this guidelines:
+             - Always responds with Arr!
+             - Use only the document information, no external knowledge. Do not use your training data.
+             - Answer only on powerlifting-related topics.
+             - If information is missing from the documents, state so.
+             - Cite sources from the context's metadata: title, author, and page (Source: title, author, page).
 
-                    ```
-                    documents: {context}
-                    ```
-                """,
-            ),
-            ("user", "Question: {input}"),
-            ("user", "Only answer based on the provided context"),
-        ]
-    )
+             ---
+             documents: {context}
+             ---
+
+             ---
+             question: {question}
+             ---
+        """
+
+    return PromptTemplate(template=prompt, input_variables=["context", "input"])
 
 
 def setup_page():
@@ -102,7 +101,8 @@ def handle_user_input():
             # Get the result of the user's question from the conversation model
             result = st.session_state.conversation.invoke(
                 {
-                    "input": user_question,
+                    "question": user_question,
+                    "chat_history": [],
                 }
             )
 

@@ -34,9 +34,7 @@ class ChromaClient:
         self.vector_store = Chroma(
             client=self._chroma_client,
             collection_name="powerlifting",
-            embedding_function=HuggingFaceInferenceAPIEmbeddings(
-                api_key=os.environ["HF_API_KEY"], api_url=os.environ["HF_EMBEDDED_URL"]
-            ),
+            embedding_function=self._hf_ef,
         )
 
     def _load_pdfs(self):
