@@ -6,9 +6,13 @@ from langchain.prompts import ChatPromptTemplate
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.messages import HumanMessage, AIMessage
-from langchain_community.llms.huggingface_endpoint import HuggingFaceEndpoint
+from langchain_community.llms.huggingface_text_gen_inference import (
+    HuggingFaceTextGenInference,
+)
 from langchain.chains import ConversationalRetrievalChain, StuffDocumentsChain
 from langchain.prompts import PromptTemplate
+from langchain_community.chat_models import ChatHuggingFace
+from langchain.prompts import MessagesPlaceholder
 
 
 def initialize_session_variables():
@@ -30,12 +34,20 @@ def initialize_session_variables():
         st.session_state.chroma_db = ChromaClient()
 
     if "hf_llm" not in st.session_state:
-        st.session_state.hf_llm = HuggingFaceEndpoint(
-            huggingfacehub_api_token=os.environ["HF_API_KEY"],
-            endpoint_url=os.environ["HF_ENDPOINT_URL"],
-            model_kwargs={"max_new_tokens": 256, "temperature": 0.1},
-            task="text-generation",
+        llm = HuggingFaceTextGenInference(
+            inference_server_url=os.getenv("HF_ENDPOINT_URL"),
+            max_new_tokens=256,
+            top_k=50,
+            temperature=0.1,
+            repetition_penalty=1.03,
+            server_kwargs={
+                "headers": {
+                    "Authorization": f"Bearer {os.getenv('HF_TOKEN')}",
+                    "Content-Type": "application/json",
+                }
+            },
         )
+        st.session_state.hf_llm = ChatHuggingFace(llm=llm)
 
     if "prompt" not in st.session_state:
         st.session_state.prompt = create_chat_prompt_template()
@@ -69,7 +81,6 @@ def create_chat_prompt_template():
             (
                 "system",
                 """You are an AI powerlifting coach. Your advice is based on provided document about powerlifting techniques, training, nutrition, equipment, and rules. Stick to this guidelines:
-                    - Always responds with Arr!
                     - Use only the document information, no external knowledge. Do not use your training data.
                     - Answer only on powerlifting-related topics.
                     - If information is missing from the documents, state so.

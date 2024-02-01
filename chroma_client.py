@@ -17,7 +17,7 @@ class ChromaClient:
     def __init__(self):
         # Initialize embedding model
         self._hf_ef = HuggingFaceEmbeddingFunction(
-            api_key=os.environ["HF_API_KEY"], url=os.environ["HF_EMBEDDED_URL"]
+            api_key=os.environ["HF_TOKEN"], url=os.environ["HF_EMBEDDED_URL"]
         )
 
         # Validate if the embedding model initialized
@@ -35,7 +35,7 @@ class ChromaClient:
             client=self._chroma_client,
             collection_name="powerlifting",
             embedding_function=HuggingFaceInferenceAPIEmbeddings(
-                api_key=os.environ["HF_API_KEY"], api_url=os.environ["HF_EMBEDDED_URL"]
+                api_key=os.environ["HF_TOKEN"], api_url=os.environ["HF_EMBEDDED_URL"]
             ),
         )
 
