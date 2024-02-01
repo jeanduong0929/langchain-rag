@@ -1,12 +1,12 @@
+import os
 import streamlit as st
 
 from chroma_client import ChromaClient
-from langchain_openai import ChatOpenAI
-from langchain.prompts import MessagesPlaceholder, ChatPromptTemplate
+from langchain.prompts import ChatPromptTemplate
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.messages import HumanMessage, AIMessage
-from langchain.memory import ConversationBufferWindowMemory
+from langchain_community.llms.huggingface_endpoint import HuggingFaceEndpoint
 
 
 def initialize_session_variables():
@@ -15,7 +15,7 @@ def initialize_session_variables():
 
     The session variables include:
     - chroma_db: ChromaClient instance
-    - openai_llm: ChatOpenAI instance
+    - llm: HuggingFace instance
     - prompt: chat prompt template
     - document: stuff documents chain
     - conversation: retrieval chain
@@ -27,21 +27,29 @@ def initialize_session_variables():
     if "chroma_db" not in st.session_state:
         st.session_state.chroma_db = ChromaClient()
 
-    if "openai_llm" not in st.session_state:
-        st.session_state.openai_llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.0)
+    if "hf_llm" not in st.session_state:
+        st.session_state.hf_llm = HuggingFaceEndpoint(
+            endpoint_url=os.environ["HF_ENDPOINT_URL"],
+            huggingfacehub_api_token=os.environ["HF_API_KEY"],
+            task="text-generation",
+            model_kwargs={
+                "max_new_tokens": 256,
+                "temperature": 0.1,
+            },
+        )
 
     if "prompt" not in st.session_state:
         st.session_state.prompt = create_chat_prompt_template()
 
     if "document" not in st.session_state:
         st.session_state.document = create_stuff_documents_chain(
-            llm=st.session_state.openai_llm, prompt=st.session_state.prompt
+            llm=st.session_state.hf_llm, prompt=st.session_state.prompt
         )
 
     if "conversation" not in st.session_state:
         st.session_state.conversation = create_retrieval_chain(
             retriever=st.session_state.chroma_db.vector_store.as_retriever(
-                search_kwargs={"k": 3}
+                search_kwargs={"k": 2}
             ),
             combine_docs_chain=st.session_state.document,
         )
@@ -61,16 +69,15 @@ def create_chat_prompt_template():
         [
             (
                 "system",
-                """You are an AI powerlifting coach. Your advice is based on provided documents about powerlifting techniques, training, nutrition, equipment, and rules. Stick to this context:
+                """You are an AI powerlifting coach. Your advice is based on provided document about powerlifting techniques, training, nutrition, equipment, and rules. Stick to this context:
                     - Use only the document information, no external knowledge.
                     - Answer only on powerlifting-related topics.
                     - If information is missing from the documents, state so.
-                    - Maintain a professional tone.
                     - Cite sources from the context's metadata: title, author, and page (Source: title, author, page).
                     Reminder: I am an AI specialized in powerlifting, providing information based on specific documents. Please keep questions relevant to powerlifting.
 
                     ```
-                    context: {context}
+                    documents: {context}
                     ```
                 """,
             ),
@@ -92,50 +99,24 @@ def handle_user_input():
     """
     if user_question := st.chat_input("Ask me a question"):
         with st.spinner("Thinking..."):
-            chat_history = process_user_question(user_question)
-        display_chat_history(chat_history)
+            # Get the result of the user's question from the conversation model
+            result = st.session_state.conversation.invoke(
+                {
+                    "input": user_question,
+                }
+            )
 
+            print(result)
 
-def process_user_question(user_question):
-    """
-    Process the user's question by invoking the conversation model and updating the chat history.
+            # Keep track of the whole chat history
+            st.session_state.chat_history.extend(
+                [
+                    HumanMessage(content=user_question),
+                    AIMessage(content=result["answer"]),
+                ]
+            )
 
-    Args:
-        user_question (str): The user's question.
-
-    Returns:
-        dict: The result of the conversation model invocation.
-    """
-    # Get the result of the user's question from the conversation model
-    result = st.session_state.conversation.invoke(
-        {
-            "input": user_question,
-        }
-    )
-
-    # Keep track of the whole chat history
-    st.session_state.chat_history.extend(
-        [HumanMessage(content=user_question), AIMessage(content=result["answer"])]
-    )
-
-    return st.session_state.chat_history
-
-
-def load_chat_history(chat_history):
-    """
-    Load the chat history into the chat memory.
-
-    Args:
-        chat_history (list): List of messages in the chat history.
-
-    Returns:
-        None
-    """
-    for i, message in enumerate(chat_history):
-        if i % 2 == 0:
-            st.session_state.memory.chat_memory.add_user_message(message)
-        else:
-            st.session_state.memory.chat_memory.add_ai_message(message)
+        display_chat_history(st.session_state.chat_history)
 
 
 def display_chat_history(chat_history):

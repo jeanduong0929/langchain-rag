@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores.chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 # Load environment variables
 load_dotenv()
@@ -40,8 +41,15 @@ class ChromaClient:
             # Create a document loader for the file
             loader = PyPDFLoader("resources/" + filename)
 
+            text_splitter = RecursiveCharacterTextSplitter(
+                separators="\n",
+                chunk_size=1000,
+                chunk_overlap=100,
+                length_function=len,
+            )
+
             # Create chunks of text from the document
-            chunks = loader.load_and_split()
+            chunks = loader.load_and_split(text_splitter=text_splitter)
 
             # Add the chunks to the vector store
             self.vector_store.add_documents(documents=chunks)
