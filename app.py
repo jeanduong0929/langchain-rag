@@ -2,7 +2,6 @@ import os
 import streamlit as st
 
 from chroma_client import ChromaClient
-from langchain.prompts import ChatPromptTemplate
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_community.llms.huggingface_endpoint import HuggingFaceEndpoint
